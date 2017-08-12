@@ -1,0 +1,50 @@
+Simple Log Queue For Records
+============================
+
+A minimal persisted queue for F# records backed by SQLite.
+
+Features:
+ * Minimal dependencies
+ * Don't require any external services
+ * Automatic serialization
+
+
+Example
+
+```f#
+open RecordLog
+// ...
+
+type ProductionRunComponent = {
+  timestamp: int64 ;
+  id: ComponentId ;
+  production_run: ProductionRunId ;
+  state: ComponentState ;
+}
+
+let record = {timestamp = int64 0; id = 1 ; production_run = 1 ; state = Done }
+
+let log = RecordLog.RecordLog()
+let item : QueueItem = log.write record
+let head : QueueItem = Seq.head log.incoming
+RecordLog.ack head |> ignore
+record = QueueItem.Unpack head
+```
+
+
+== Notes ==
+
+**`BLOB` Primary Key**
+
+SQLite indexes blob PK's, this is not true for any other SQL databases AFAIK. Using the same sql for
+any other database does not necasserily make sense.
+
+
+**Safe rather than performant**
+
+It's not possible to do 10k+/ops a second (probably not even 1000). The primary use case was to persist
+records such that they can be consumed by a slow background process later. For instance store work
+for a future remote sync when there's no network connectivity.
+
+It's important that it handels crashes (which SQLite does better than if I rolled my own IO layer),
+and it gives exactly-once semantics for consumption if needed.
