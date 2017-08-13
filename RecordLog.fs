@@ -25,9 +25,11 @@ module Provider =
 
 
 type RecordLog () =
+  let epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
   let now () = System.DateTime.UtcNow
-  let toUnix dt = DateTimeOffset(dt).ToUnixTimeMilliseconds()
- 
+  let toUnix (dt:DateTime) =
+    (int64 (dt.ToUniversalTime() - epoch).TotalSeconds) * 1000L + (int64 dt.Millisecond)
+
   let fmt = new Formatters.Binary.BinaryFormatter()
 
   let ctx = Provider.sql.GetDataContext()
