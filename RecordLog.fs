@@ -116,3 +116,69 @@ type RecordLog () =
     } |> Seq.iter (fun row -> row.Delete())
 
     ctx.SubmitUpdates()
+
+  member x.clean =
+    query {
+      for row in _queue do
+      where (true)
+    } |> Seq.``delete all items from single table``
+    |> Async.RunSynchronously |> ignore
+
+
+
+
+module ``Tests`` =
+  open NUnit.Framework
+  open FsUnit
+
+  // test some random types
+  type TestUnion =
+    | Triplet of int * int * int
+    | Quadrople of int * int * int
+
+  type InnerTestRecord = {
+    ``float``: float
+  }
+
+  type TestRecord = {
+    optional: int option ;
+    number: int ;
+    bytes: byte[] ;
+    str: string ;
+    record: InnerTestRecord ;
+    union: TestUnion ;
+    tuple: string * string ;
+  }
+
+  [<TestFixture>]
+  type ``Basic tests`` ()=
+
+    let log = RecordLog()
+
+    [<Test>] member x.
+      ``Checked empty`` ()=
+        do
+          log.clean
+          let result = log.take 1
+          Assert.True result.IsNone
+
+    [<Test>] member x.
+      ``basic run`` ()=
+        do
+          log.clean
+          let item : QueueItem =
+            log.write {
+              optional = Some 1 ;
+              number = 2 ;
+              bytes = [| (byte 3) |] ;
+              str = "a" ;
+              record = { ``float`` = 4.0 } ;
+              union = Triplet(5, 6, 7) ;
+              tuple = ("b", "c")
+            }
+
+          let fetched = (log.take 1)
+          Assert.AreEqual(item, (Seq.head fetched.Value))
+
+          log.acknowledge item.Key
+          Assert.True (log.take 1).IsNone
