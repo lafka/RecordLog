@@ -86,47 +86,31 @@ type RecordLog () =
     row.Timestamp <- toUnix (now ())
 
     // We don't actually care whetever the computation finishes or not....
-    Async.Start(ctx.SubmitUpdatesAsync())
+    ctx.SubmitUpdates()
 
     row.MapTo<QueueItem>()
 
-  // there are two use cases:
-  //  * Append to the queue
-  //  * Retreive from a queue
-  //
-  // You can easily append by using the .write/1 method which appends the
-  // new Queue record to database
-  //
-  // When retreiving data it's assumed you have a workflow where you
-  // acknowledge the work done. In principal you can read as much of
-  // data in the queue as you like, you only need to bump the pointer
-  // once you have completed the work done
-  // 
-  // 
+  // take `n` elements n > 0
+  member x.take n =
+      let results =
+        query {
+          for row in _queue do
+          sortBy(row.Key)
+          take(n)
+          select row
+        } |> Seq.map (fun r -> r.MapTo<QueueItem>())
 
-  //member x.head pointer =
-  //  ()
-  
+      if Seq.isEmpty results then
+        None
+      else
+        Some results
 
-  // naive, gets all items in queue newer than given pointer
-  // @todo:
-  //  * if pointer don't exist add pointer from HEAD OR END????
-  //  * This should work more like this - assuming only one consumer of queue
-  //    Seq.iter (fun (ptr, record) ->
-  //                handleRecord
-  //                updatePointer ptr record) queueSeq(ptr)
-  //  * Call it "sync agent" and expose (alive?, nRecords Left) information
+  // clear a item of the queue
+  member x.acknowledge key =
+    query {
+      for row in _queue do
+      where (row.Key = key)
+      select row
+    } |> Seq.iter (fun row -> row.Delete())
 
-  //member queueSeq ptrKey  =
-  //  let ptr = (query {
-  //    for row in _ptr do
-  //    where (row.Key = ptr)
-  //    take 1
-  //    select row
-  //  } |> Seq.map (fun a -> a.MapTo<Pointer>()) |> Seq.head)
-
-  //  query {
-  //    for row in _queue do
-  //    where (row.Id > ptr.QueueId)
-  //    select row
-  //  } |> Seq.map (fun a -> a.MapTo<QueueItem>())    
+    ctx.SubmitUpdates()
